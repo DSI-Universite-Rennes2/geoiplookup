@@ -1,0 +1,170 @@
+#!/bin/bash
+#
+# lookup IP in MMDB files via mmdblookup and output JSON
+#
+#    Use system's MMDB if found in one of (in this order) :
+#        - $MAXMIND_DATADIR if defined and a directory
+#        - <current script dir>/GeoIP
+#        - <current script dir>/
+#        - /usr/local/share/GeoIP
+#        - /usr/share/GeoIP
+#
+# -----------------------------------------------------------------------------
+# License : European Union Public License 1.2
+#           https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+#
+# SPDX-License-Identifier: EUPL-1.2
+# -----------------------------------------------------------------------------
+# Copyright (c) 2024-2025 DSI - Université Rennes 2
+#               Yann 'Ze' Richard <yann . richard à univ-rennes2.fr>
+# -----------------------------------------------------------------------------
+# Source at : https://github.com/DSI-Universite-Rennes2/geoiplookup
+# -----------------------------------------------------------------------------
+# Example in shell scripts :
+#   - testing if DB's config are OK and using : 
+#             if "$geoiplookup_dir"/geoiplookup check > /dev/null 2>&1
+#             then
+#                 # using with jq
+#                 "$geoiplookup_dir"/geoiplookup "$ip" | jq .
+#                 exit $?
+#             fi
+# -----------------------------------------------------------------------------
+# Requirements :
+#       - jq
+#       - mmdblookup
+#
+# sudo apt install jq mmdb-bin
+# -----------------------------------------------------------------------------
+LDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+function echoerr() { 
+    echo "$@" 1>&2
+}
+
+function usage() {
+    echo "Usage: $0 < -c > | <ip>"
+    echo "   -c : check if usable (check DBs againsts one fixed IP ; exit 0 if all OK ; 1 otherwise"
+}
+
+function get_quoted_string () {
+    # Get only the string beetween quotes because mmdblookup returns "value" + type for strings
+    # like   "United States" <utf8_string>
+    get_result=$(sed -E 's/.*"(.*)".*/\1/' <<< "$*" | xargs)
+}
+
+function get_number () {
+    # Get only the number  because mmdblookup returns value + type for numbers
+    # like   714 <uint32>
+    get_result=$(echo "${1% *}" | xargs )
+}
+
+# Search on all MAXMIND_DB_DEFAULTS_DIRS if GeoLite2-Country.mmdb exists and echo the first found
+function whereis_maxmind() {
+    MAXMIND_DB_DEFAULTS_DIRS="$LDIR/GeoIP $LDIR /usr/local/share/GeoIP /usr/share/GeoIP"
+    # first check MAXMIND_DATADIR and if not defined current script DIR.
+    MAXMIND_DBDIR="${MAXMIND_DATADIR:-$LDIR}"
+    if [ -f "$MAXMIND_DBDIR/GeoLite2-Country.mmdb" ]
+    then
+        echo "$MAXMIND_DBDIR"
+        return
+    fi
+
+    # Check all dirs in MAXMIND_DB_DEFAULTS_DIRS
+    for tpath in $MAXMIND_DB_DEFAULTS_DIRS
+    do
+        if [ -f "$tpath/GeoLite2-Country.mmdb" ]
+        then
+            echo "$tpath"
+            return
+        fi
+    done
+    echoerr "No DB detected."
+    echo ""
+}
+
+# -----------------------------------------------------------------------------
+# Config
+
+# Autodetect with where is m. 𝄞 🎸🎵 🎶 🎶 mind databases
+MAXMIND_DBDIR=$(whereis_maxmind)
+MAXMIND_COUNTRY="$MAXMIND_DBDIR/GeoLite2-Country.mmdb"
+MAXMIND_ASN="$MAXMIND_DBDIR/GeoLite2-ASN.mmdb"
+
+if [ -z "$MAXMIND_DBDIR" ]
+then
+    exit 1
+fi
+# -----------------------------------------------------------------------------
+while getopts ":hc" opt; do
+    case "${opt}" in
+        h)
+            usage
+            exit 0
+            ;;
+        c)
+            check=1
+            ;;
+        *)
+            # nothing
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+# avoid shellcheck warning
+get_result=''
+# -----------------------------------------------------------------------------
+# auto-check action
+if [[ $check -eq 1 ]]
+then
+    # testing ASN DB to resolve : 17.* is an Apple prefix ASN 714 /
+    asn_number=''
+    asn_string=$(mmdblookup --file "${MAXMIND_ASN}" --ip "17.0.0.1" autonomous_system_number 2>/dev/null)
+    get_number "$asn_string" && asn_number=${get_result}
+    if [[ "$asn_number" -ne "714" ]]
+    then
+        echoerr "17.0.0.1 does not resolved to ASN 714 : $asn_number // Using $MAXMIND_DBDIR"
+        exit 1
+    fi
+
+    # testing Country DB to resolve : 17.0.0.1 in United States
+    country=''
+    country_string=$(mmdblookup --file "${MAXMIND_COUNTRY}" --ip "17.0.0.1" country names en 2>/dev/null)
+    get_quoted_string "$country_string" && country=${get_result}
+    if [[ "$country" != "United States" ]]
+    then
+        echoerr "17.0.0.1 does not resolved to 'United States' as country : $country // Using $MAXMIND_DBDIR"
+        exit 1
+    else
+        exit 0
+    fi
+fi
+
+# No argument given ?
+if [ -z "$1" ]
+then
+    usage
+    exit 1
+fi
+
+country_string=$(mmdblookup    --file "${MAXMIND_COUNTRY}" --ip "$1" country names en 2>/dev/null || echo "NOT FOUND")
+continent_string=$(mmdblookup  --file "${MAXMIND_COUNTRY}" --ip "$1" continent names en 2>/dev/null || echo "NOT FOUND")
+asn_org_string=$(mmdblookup    --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_organization 2>/dev/null || echo "NOT FOUND")
+asn_string=$(mmdblookup        --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_number 2>/dev/null || echo "0")
+
+get_quoted_string   "$country_string"   && country=${get_result}
+get_quoted_string   "$continent_string" && continent=${get_result}
+get_quoted_string   "$asn_org_string"   && asn_org=${get_result}
+get_number          "$asn_string"       && asn_number=${get_result}
+
+if ! JSON=$(jq -r --null-input    \
+    --arg ASN       "$asn_number" \
+    --arg ASORG     "$asn_org"    \
+    --arg COUNTRY   "$country"    \
+    --arg CONTINENT "$continent"  \
+'{"asn": $ASN|tonumber, "asorg": $ASORG, "country": $COUNTRY, "continent": $CONTINENT}' 2> /dev/null)
+then
+    echoerr "Error when trying to build JSON"
+    exit 1
+fi
+echo "$JSON"
