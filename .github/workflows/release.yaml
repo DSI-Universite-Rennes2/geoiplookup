@@ -35,25 +35,27 @@ jobs:
       - name: Add how to download / verrify checksum in release description
         run: |
           TAG_NAME=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
-          RELEASE_BODY="### Téléchargement du script
-          
-### Download this version :
+          RELEASE_BODY=$(cat <<EOF
 
-\`\`\`bash
-curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/$SCRIPT_NAME
-\`\`\`
+          ## How to : download and verify checksums
+                    
+          ### Download the script
 
-### Verify checksums
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/$SCRIPT_NAME
+          ```
 
-\`\`\`bash
-curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/$SCRIPT_NAME.sha256
-\`\`\`
+          ### Verify checksums
 
-Vérifiez la somme de contrôle avec la commande suivante :
+          \`\`\`bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/$SCRIPT_NAME.sha256
+          \`\`\`
 
-\`\`\`bash
-sha256sum -c $SCRIPT_NAME.sha256
-\`\`\`"
+          \`\`\`bash
+          sha256sum -c $SCRIPT_NAME.sha256
+          \`\`\`"
+          EOF
+          )
 
           # Update release description
           curl -X PATCH \
