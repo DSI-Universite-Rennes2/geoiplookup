@@ -1,0 +1,62 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install sha256sum
+        run: sudo apt-get install -y coreutils
+
+      - name: Set script name
+        run: echo "SCRIPT_NAME=geoiplookup" >> $GITHUB_ENV
+
+      - name: Generate SHA256 checksum
+        run: |
+          sha256sum $SCRIPT_NAME > $SCRIPT_NAME.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files:
+            - ${{ env.SCRIPT_NAME }}
+            - ${{ env.SCRIPT_NAME }}.sha256
+
+      - name: Add how to download / verrify checksum in release description
+        run: |
+          TAG_NAME=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+          RELEASE_BODY="### Téléchargement du script
+          
+### Download this version :
+
+\`\`\`bash
+curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/$SCRIPT_NAME
+\`\`\`
+
+### Verify checksums
+
+\`\`\`bash
+curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/$SCRIPT_NAME.sha256
+\`\`\`
+
+Vérifiez la somme de contrôle avec la commande suivante :
+
+\`\`\`bash
+sha256sum -c $SCRIPT_NAME.sha256
+\`\`\`"
+
+          # Update release description
+          curl -X PATCH \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d "{\"body\": \"$RELEASE_BODY\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG_NAME}"
