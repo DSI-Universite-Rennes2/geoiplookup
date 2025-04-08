@@ -28,10 +28,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files:
-            - ${{ env.SCRIPT_NAME }}
-            - ${{ env.SCRIPT_NAME }}.sha256
-
+          files: |
+            ${{ env.SCRIPT_NAME }}
+            ${{ env.SCRIPT_NAME }}.sha256
       - name: Add how to download / verrify checksum in release description
         run: |
           TAG_NAME=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
