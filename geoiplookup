@@ -150,22 +150,29 @@ then
     exit 1
 fi
 
-country_string=$(mmdblookup    --file "${MAXMIND_COUNTRY}" --ip "$1" country names en 2>/dev/null || echo "NOT FOUND")
-continent_string=$(mmdblookup  --file "${MAXMIND_COUNTRY}" --ip "$1" continent names en 2>/dev/null || echo "NOT FOUND")
-asn_org_string=$(mmdblookup    --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_organization 2>/dev/null || echo "NOT FOUND")
-asn_string=$(mmdblookup        --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_number 2>/dev/null || echo "0")
+country_string=$(mmdblookup         --file "${MAXMIND_COUNTRY}" --ip "$1" country names en 2>/dev/null || echo "NOT FOUND")
+countrycode_string=$(mmdblookup     --file "${MAXMIND_COUNTRY}" --ip "$1" country iso_code 2>/dev/null || echo "NOT FOUND")
+continent_string=$(mmdblookup       --file "${MAXMIND_COUNTRY}" --ip "$1" continent names en 2>/dev/null || echo "NOT FOUND")
+continentcode_string=$(mmdblookup   --file "${MAXMIND_COUNTRY}" --ip "$1" continent code 2>/dev/null || echo "NOT FOUND")
+asn_org_string=$(mmdblookup         --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_organization 2>/dev/null || echo "NOT FOUND")
+asn_string=$(mmdblookup             --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_number 2>/dev/null || echo "0")
 
-get_quoted_string   "$country_string"   && country=${get_result}
-get_quoted_string   "$continent_string" && continent=${get_result}
-get_quoted_string   "$asn_org_string"   && asn_org=${get_result}
-get_number          "$asn_string"       && asn_number=${get_result}
+get_quoted_string   "$country_string"       && country=${get_result}
+get_quoted_string   "$countrycode_string"   && country_code=${get_result}
+get_quoted_string   "$continent_string"     && continent=${get_result}
+get_quoted_string   "$continentcode_string" && continent_code=${get_result}
+get_quoted_string   "$asn_org_string"       && asn_org=${get_result}
+get_number          "$asn_string"           && asn_number=${get_result}
 
-if ! JSON=$(jq -r --null-input    \
-    --arg ASN       "$asn_number" \
-    --arg ASORG     "$asn_org"    \
-    --arg COUNTRY   "$country"    \
-    --arg CONTINENT "$continent"  \
-'{"asn": $ASN|tonumber, "asorg": $ASORG, "country": $COUNTRY, "continent": $CONTINENT}' 2> /dev/null)
+if ! JSON=$(jq -r --null-input \
+    --arg IP            "$1"              \
+    --arg ASN           "$asn_number"     \
+    --arg ASORG         "$asn_org"        \
+    --arg COUNTRY       "$country"        \
+    --arg COUNTRYCODE   "$country_code"   \
+    --arg CONTINENT     "$continent"      \
+    --arg CONTINENTCODE "$continent_code" \
+'{"ip": $IP, "asn": $ASN|tonumber, "asorg": $ASORG, "country": $COUNTRY, "country_code": $COUNTRYCODE, "continent": $CONTINENT, "continent_code": $CONTINENTCODE}' 2> /dev/null)
 then
     echoerr "Error when trying to build JSON"
     exit 1
