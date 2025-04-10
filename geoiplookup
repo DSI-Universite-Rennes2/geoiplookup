@@ -61,6 +61,12 @@ function get_number () {
     get_result=$(echo "${1% *}" | xargs )
 }
 
+function get_boolean () {
+    # Get the boolean value
+    #  like    true <boolean>
+    get_result=$(echo "${1% *}" | xargs )
+}
+
 # Search on all MAXMIND_DB_DEFAULTS_DIRS if GeoLite2-Country.mmdb exists and echo the first found
 function whereis_maxmind() {
     MAXMIND_DB_DEFAULTS_DIRS="$LDIR/GeoIP $LDIR /usr/local/share/GeoIP /usr/share/GeoIP"
@@ -152,6 +158,7 @@ fi
 
 country_string=$(mmdblookup         --file "${MAXMIND_COUNTRY}" --ip "$1" country names en 2>/dev/null || echo "NOT FOUND")
 countrycode_string=$(mmdblookup     --file "${MAXMIND_COUNTRY}" --ip "$1" country iso_code 2>/dev/null || echo "NOT FOUND")
+country_in_eu_string=$(mmdblookup   --file "${MAXMIND_COUNTRY}" --ip "$1" country is_in_european_union 2>/dev/null || echo "false")
 continent_string=$(mmdblookup       --file "${MAXMIND_COUNTRY}" --ip "$1" continent names en 2>/dev/null || echo "NOT FOUND")
 continentcode_string=$(mmdblookup   --file "${MAXMIND_COUNTRY}" --ip "$1" continent code 2>/dev/null || echo "NOT FOUND")
 asn_org_string=$(mmdblookup         --file "${MAXMIND_ASN}"     --ip "$1" autonomous_system_organization 2>/dev/null || echo "NOT FOUND")
@@ -159,12 +166,14 @@ asn_string=$(mmdblookup             --file "${MAXMIND_ASN}"     --ip "$1" autono
 
 get_quoted_string   "$country_string"       && country=${get_result}
 get_quoted_string   "$countrycode_string"   && country_code=${get_result}
+get_boolean         "$country_in_eu_string" && country_in_eu=${get_result}
 get_quoted_string   "$continent_string"     && continent=${get_result}
 get_quoted_string   "$continentcode_string" && continent_code=${get_result}
 get_quoted_string   "$asn_org_string"       && asn_org=${get_result}
 get_number          "$asn_string"           && asn_number=${get_result}
 
 if ! JSON=$(jq -r --null-input \
+    --argjson IS_IN_EU  "$country_in_eu"  \
     --arg IP            "$1"              \
     --arg ASN           "$asn_number"     \
     --arg ASORG         "$asn_org"        \
@@ -172,7 +181,7 @@ if ! JSON=$(jq -r --null-input \
     --arg COUNTRYCODE   "$country_code"   \
     --arg CONTINENT     "$continent"      \
     --arg CONTINENTCODE "$continent_code" \
-'{"ip": $IP, "asn": $ASN|tonumber, "asorg": $ASORG, "country": $COUNTRY, "country_code": $COUNTRYCODE, "continent": $CONTINENT, "continent_code": $CONTINENTCODE}' 2> /dev/null)
+'{"ip": $IP, "asn": $ASN|tonumber, "asorg": $ASORG, "country": $COUNTRY, "country_code": $COUNTRYCODE, "is_in_european_union": $IS_IN_EU, "continent": $CONTINENT, "continent_code": $CONTINENTCODE}' 2> /dev/null)
 then
     echoerr "Error when trying to build JSON"
     exit 1
