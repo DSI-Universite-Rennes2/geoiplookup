@@ -69,7 +69,7 @@ function get_boolean () {
 
 # Search on all MAXMIND_DB_DEFAULTS_DIRS if GeoLite2-Country.mmdb exists and echo the first found
 function whereis_maxmind() {
-    MAXMIND_DB_DEFAULTS_DIRS="$LDIR/GeoIP $LDIR /usr/local/share/GeoIP /usr/share/GeoIP"
+    MAXMIND_DB_DEFAULTS_DIRS="$LDIR/GeoIP $LDIR /var/lib/GeoIP/ /usr/local/share/GeoIP /usr/share/GeoIP"
     # first check MAXMIND_DATADIR and if not defined current script DIR.
     MAXMIND_DBDIR="${MAXMIND_DATADIR:-$LDIR}"
     if [ -f "$MAXMIND_DBDIR/GeoLite2-Country.mmdb" ]

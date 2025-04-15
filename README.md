@@ -7,6 +7,7 @@ Using system's MMDB if found in one of (in this order) :
 - `$MAXMIND_DATADIR` if defined and a directory
 - `./GeoIP`
 - `./`
+- `/var/lib/GeoIP/`
 - `/usr/local/share/GeoIP`
 - `/usr/share/GeoIP`
 
